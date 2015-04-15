@@ -10,4 +10,6 @@ endif(NOT DynamoRIO_FOUND)
 
 add_library(demo SHARED demo.c)
 configure_DynamoRIO_client(demo)
+use_DynamoRIO_extension(demo drmgr)
 use_DynamoRIO_extension(demo drsyms)
+use_DynamoRIO_extension(demo drwrap)
