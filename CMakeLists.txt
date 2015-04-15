@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.0)
+project(dynamorio_demo)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -Wall")
+set(DynamoRIO_DIR "${CMAKE_SOURCE_DIR}/dynamorio/exports/cmake")
+find_package(DynamoRIO)
+if (NOT DynamoRIO_FOUND)
+  message(FATAL_ERROR "DynamoRIO package required to build")
+endif(NOT DynamoRIO_FOUND)
+
+add_library(demo SHARED demo.c)
+configure_DynamoRIO_client(demo)
+use_DynamoRIO_extension(demo drsyms)
