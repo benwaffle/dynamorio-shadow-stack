@@ -98,7 +98,6 @@ void on_call_phase2(void *wrapctx, void **user_data)
 void on_ret_phase2(void *wrapctx, void *user_data)
 {
     printf("_Unwind_RaiseException_Phase2 returned\n");
-    pop();
     push((void*)_Unwind_GetIP(user_data));
 }
 
