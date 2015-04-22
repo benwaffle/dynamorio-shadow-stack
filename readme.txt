@@ -3,7 +3,8 @@ to build dynamorio:
     $ cmake .. && make && make install
 
 to build shadow stack:
-    same thing without `make install`
+    $ mkdir build && cd build 
+    $ cmake .. && make
 
 to run shadow stack:
 in build/
