@@ -10,30 +10,16 @@
 
 #include "kvec.h"
 
-char *get_sym(app_pc addr)
-{
-    module_data_t *data = dr_lookup_module(addr);
-    if (data != NULL)
-    {
-        char *name = malloc(256);
-        char file[MAXIMUM_PATH];
-        drsym_info_t sym;
-        sym.struct_size = sizeof(sym);
-        sym.name = name;
-        sym.name_size = 256;
-        sym.file = file;
-        sym.file_size = MAXIMUM_PATH;
-        drsym_error_t res = drsym_lookup_address(data->full_path, addr - data->start, &sym, DRSYM_DEFAULT_FLAGS);
-        if (res != DRSYM_SUCCESS && res != DRSYM_ERROR_LINE_NOT_AVAILABLE)
-        {
-            free(name);
-            name = NULL;
-        }
-        dr_free_module_data(data);
-        return name;
-    }
-    return NULL;
-}
+//#define DEBUG
+
+#ifdef DEBUG
+#include "debug.h"
+#else
+#define printf(...)
+#define indent
+#define unindent
+#define tdebug(...)
+#endif
 
 int tls_key = -1;
 
@@ -46,24 +32,33 @@ void push(void *addr)
 void *pop()
 {
     kvec_t(void*) *stack = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
+    assert(kv_size(*stack) > 0);
     return kv_pop(*stack);
 }
 
 void *peek()
 {
     kvec_t(void*) *stack = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
+    assert(kv_size(*stack) > 0);
     return kv_A(*stack, kv_size(*stack)-1);
 }
 
 void on_call(void *call_ins, void *target_addr)
 {
+    tdebug("call %p <%s>\n", target_addr, get_sym(target_addr));
     push(call_ins);
+    indent;
 }
 
 void on_ret(void *ret_ins, void *target_addr)
 {
+    unindent;
     while (target_addr - pop() > 8)
-        ;
+    {
+        tdebug("skipping a frame\n");
+        unindent;
+    }
+    tdebug("returning to %p\n", target_addr);
 }
 
 dr_emit_flags_t new_bb(void *drcontext, void *tag, instrlist_t *bb, instr_t *inst, bool for_trace, bool translating, void *user_data)
@@ -82,8 +77,8 @@ dr_emit_flags_t new_bb(void *drcontext, void *tag, instrlist_t *bb, instr_t *ins
 
 void on_thread(void *drcontext)
 {
-    kvec_t(void*) *stack = malloc(sizeof(kvec_t(void*)));
-    kv_init(*stack);
+    kvec_t(void*) *stack = calloc(1, sizeof(kvec_t(void*)));
+    assert(stack != NULL);
     drmgr_set_tls_field(drcontext, tls_key, stack);
 }
 
@@ -94,39 +89,38 @@ void on_thread_exit(void *drcontext)
     free(stack);
 }
 
-void on_call_phase2(void *wrapctx, OUT void **user_data)
+void on_call_phase2(void *wrapctx, void **user_data)
 {
     *user_data = drwrap_get_arg(wrapctx, 1);
+    printf("_Unwind_RaiseException_Phase2 called; catch @ %p\n", *user_data);
 }
 
 void on_ret_phase2(void *wrapctx, void *user_data)
 {
-    struct _Unwind_Context *uw = user_data;
-
-    void *catch_addr = (void*)_Unwind_GetIP(uw); // IP in catch, i.e. return address
-/*    instr_t i;
-    decode(drwrap_get_drcontext(wrapctx), catch_addr, &i);
-    void *catch_func = ; // address of function containing catch
-
-    while ( RTN_Address(RTN_FindByAddress(peek())) != catch_func )
-            pop();
-*/
-
-    push(catch_addr);
+    printf("_Unwind_RaiseException_Phase2 returned\n");
+    pop();
+    push((void*)_Unwind_GetIP(user_data));
 }
 
 void on_module_load(void *drcontext, const module_data_t *info, bool loaded)
 {
-    void *addr;
-    if ((addr = dr_get_proc_address(info->handle, "_Unwind_RaiseException_Phase2")) != NULL)
+    printf("Looking for _Unwind_RaiseException_Phase2 in %s\n", info->full_path);
+    size_t offset;
+    drsym_error_t error = drsym_lookup_symbol(info->full_path,
+                                              "_Unwind_RaiseException_Phase2",
+                                              &offset,
+                                              DRSYM_DEFAULT_FLAGS);
+    if (error == DRSYM_SUCCESS || error == DRSYM_ERROR_LINE_NOT_AVAILABLE)
     {
-        drwrap_wrap(addr, &on_call_phase2, &on_ret_phase2);
+        printf("Found it at %p\n", info->start + offset);
+        drwrap_wrap(info->start + offset, &on_call_phase2, &on_ret_phase2);
         drmgr_unregister_module_load_event(&on_module_load);
     }
 }
 
 void on_exit()
 {
+    printf("Stopping shadow stack\n");
     drmgr_exit();
     drwrap_exit();
     drsym_exit();
@@ -134,6 +128,7 @@ void on_exit()
 
 DR_EXPORT void dr_init(client_id_t id)
 {
+    printf("Starting shadow stack\n");
     drmgr_init();
     drwrap_init();
     drsym_init(0);
