@@ -13,12 +13,12 @@
 //#define DEBUG
 
 #ifdef DEBUG
-#include "debug.h"
+	#include "debug.h"
 #else
-#define printf(...)
-#define indent
-#define unindent
-#define tdebug(...)
+	#define printf(...)
+	#define indent
+	#define unindent
+	#define tdebug(...)
 #endif
 
 int tls_key = -1;

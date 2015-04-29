@@ -1,5 +1,8 @@
 #pragma once
 
+#include "dr_api.h"
+#include "drsyms.h"
+
 #define printf dr_printf
 int tabs = 0;
 #define indent (++tabs)
