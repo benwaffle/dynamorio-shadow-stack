@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <sys/types.h>
 #include <unwind.h>
+#include <stddef.h>
 
 #include "dr_api.h"
 #include "drsyms.h"
@@ -23,6 +24,7 @@
 
 int tls_key = -1;
 
+/*********************** stack ***********************/
 void push(void *addr)
 {
     kvec_t(void*) *stack = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
@@ -43,9 +45,10 @@ void *peek()
     return kv_A(*stack, kv_size(*stack)-1);
 }
 
+/******************* instrumentation *****************/
 void on_call(void *call_ins, void *target_addr)
 {
-    tdebug("call %p <%s>\n", target_addr, get_sym(target_addr));
+    tdebug("%p: call %p <%s>\n", call_ins, target_addr, get_sym(target_addr));
     push(call_ins);
     indent;
 }
@@ -53,7 +56,8 @@ void on_call(void *call_ins, void *target_addr)
 void on_ret(void *ret_ins, void *target_addr)
 {
     unindent;
-    while (target_addr - pop() > 8)
+    ptrdiff_t diff;
+    while (diff = target_addr - pop(), !(0 <= diff && diff < 8))
     {
         tdebug("skipping a frame\n");
         unindent;
@@ -61,6 +65,7 @@ void on_ret(void *ret_ins, void *target_addr)
     tdebug("returning to %p\n", target_addr);
 }
 
+/******************** analysis ********************/
 dr_emit_flags_t new_bb(void *drcontext, void *tag, instrlist_t *bb, instr_t *inst, bool for_trace, bool translating, void *user_data)
 {
     if (inst == instrlist_last(bb)) {
@@ -75,6 +80,7 @@ dr_emit_flags_t new_bb(void *drcontext, void *tag, instrlist_t *bb, instr_t *ins
     return DR_EMIT_DEFAULT;
 }
 
+/******************* threads **********************/
 void on_thread(void *drcontext)
 {
     kvec_t(void*) *stack = calloc(1, sizeof(kvec_t(void*)));
@@ -89,6 +95,7 @@ void on_thread_exit(void *drcontext)
     free(stack);
 }
 
+/***************** c++ exceptions ****************/
 void on_call_phase2(void *wrapctx, void **user_data)
 {
     *user_data = drwrap_get_arg(wrapctx, 1);
@@ -117,6 +124,7 @@ void on_module_load(void *drcontext, const module_data_t *info, bool loaded)
     }
 }
 
+/******************* main ********************/
 void on_exit()
 {
     printf("Stopping shadow stack\n");
