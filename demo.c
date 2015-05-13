@@ -8,8 +8,7 @@
 #include "drsyms.h"
 #include "drmgr.h"
 #include "drwrap.h"
-
-#include "kvec.h"
+#include "drvector.h"
 
 //#define DEBUG
 
@@ -27,22 +26,23 @@ int tls_key = -1;
 /*********************** stack ***********************/
 void push(void *addr)
 {
-    kvec_t(void*) *stack = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
-    kv_push(void*, *stack, addr);
+    drvector_t *vec = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
+    drvector_append(vec, addr);
 }
 
 void *pop()
 {
-    kvec_t(void*) *stack = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
-    assert(kv_size(*stack) > 0);
-    return kv_pop(*stack);
+    drvector_t *vec = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
+    assert(vec->entries > 0);
+    vec->entries--;
+    return vec->array[vec->entries];
 }
 
 void *peek()
 {
-    kvec_t(void*) *stack = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
-    assert(kv_size(*stack) > 0);
-    return kv_A(*stack, kv_size(*stack)-1);
+    drvector_t *vec = drmgr_get_tls_field(dr_get_current_drcontext(), tls_key);
+    assert(vec->entries > 0);
+    return vec->array[vec->entries-1];
 }
 
 /******************* instrumentation *****************/
@@ -83,16 +83,17 @@ dr_emit_flags_t new_bb(void *drcontext, void *tag, instrlist_t *bb, instr_t *ins
 /******************* threads **********************/
 void on_thread(void *drcontext)
 {
-    kvec_t(void*) *stack = calloc(1, sizeof(kvec_t(void*)));
-    assert(stack != NULL);
-    drmgr_set_tls_field(drcontext, tls_key, stack);
+    drvector_t *vec = dr_thread_alloc(drcontext, sizeof *vec);
+    assert(vec != NULL);
+    drvector_init(vec, 10, false, NULL);
+    drmgr_set_tls_field(drcontext, tls_key, vec);
 }
 
 void on_thread_exit(void *drcontext)
 {
-    kvec_t(void*) *stack = drmgr_get_tls_field(drcontext, tls_key);
-    kv_destroy(*stack);
-    free(stack);
+    drvector_t *vec = drmgr_get_tls_field(drcontext, tls_key);
+    drvector_delete(vec);
+    dr_thread_free(drcontext, vec, sizeof *vec);
 }
 
 /***************** c++ exceptions ****************/
