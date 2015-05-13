@@ -14,5 +14,5 @@ $ cmake .. && make
 
 to run shadow stack: from `build/` run
 ```
-$ ../dynamorio/exports/bin64/drrun -c ./libdemo.so -- <program>
+$ ../dynamorio/exports/bin64/drrun -c ./libshadowstack.so -- <program>
 ```
