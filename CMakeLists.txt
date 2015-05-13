@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(dynamorio_demo)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -Wall")
-
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -Wall -g -O3")
 set(DynamoRIO_DIR "${CMAKE_SOURCE_DIR}/dynamorio/exports/cmake")
 find_package(DynamoRIO)
 if (NOT DynamoRIO_FOUND)

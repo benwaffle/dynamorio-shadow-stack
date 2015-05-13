@@ -57,7 +57,7 @@ void on_ret(void *ret_ins, void *target_addr)
 {
     unindent;
     ptrdiff_t diff;
-    while (diff = target_addr - pop(), !(0 <= diff && diff < 8))
+    while (diff = target_addr - pop(), !(0 <= diff && diff <= 8))
     {
         tdebug("skipping a frame\n");
         unindent;
